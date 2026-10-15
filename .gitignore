@@ -17,3 +17,8 @@ DerivedData/
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# Editor swap files
+*.swp
+*.swo
+*~

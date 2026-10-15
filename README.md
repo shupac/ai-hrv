@@ -67,3 +67,7 @@ Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iP
 - If the strap drops out, a pending reconnect stays active and it resumes automatically when back in range, including in the background. The gap is marked and HRV never spans it.
 - If iOS terminates the app for memory, Bluetooth state restoration relaunches it and recording continues.
 - **If you swipe the app away in the app switcher, iOS stops all Bluetooth delivery.** Recording pauses until you open the app again.
+
+## Notes
+
+- **Possible strap upgrade:** [Wahoo TRACKR Heart Rate](https://www.wahoofitness.com/devices/running/heart-rate-monitors/trackr-heart-rate-buy). It's about $99, rechargeable, and supports up to 3 simultaneous connections, so the phone, Watch and Mac could connect at the same time. Not yet verified with this app: confirm it sends RR intervals with `swift tools/hrscan.swift`.
