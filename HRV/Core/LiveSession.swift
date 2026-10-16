@@ -7,6 +7,8 @@ final class LiveSession {
     private(set) var bpm: Int?
     private(set) var current = HRVResult(status: .collecting(have: 0, need: 60), validPairs: 0, artifactFraction: 0)
     private(set) var series: [HRVPoint] = []
+    /// The strap reports heart rate but no RR intervals, so HRV can't be computed.
+    private(set) var noRR = false
 
     var window: HRVWindow = .s60 {
         didSet { rebuildSeries() }
@@ -21,9 +23,12 @@ final class LiveSession {
     @ObservationIgnored private var beats: [Beat] = []
     @ObservationIgnored private var lastTick: Date?
     @ObservationIgnored private var segment = 0
+    @ObservationIgnored private var rrMissingSince: Date?
 
     static let chartSpan: TimeInterval = 30 * 60
     static let tick: TimeInterval = 5
+    /// A slow heart rate gives the odd packet without a beat, never 15 s of them.
+    static let noRRAfter: TimeInterval = 15
     private static let bufferSpan: TimeInterval = 65 * 60   // detector baseline needs the past hour
 
     init(store: DayStore) {
@@ -33,6 +38,18 @@ final class LiveSession {
 
     func handle(_ m: HeartRateMeasurement, at now: Date) {
         bpm = m.bpm
+        // Any RR, or a contact problem (a different issue), restarts the count.
+        if !m.rrIntervalsMs.isEmpty || m.bpm == 0 || m.contactDetected == false {
+            rrMissingSince = nil
+            if noRR { noRR = false }
+        } else {
+            let since = rrMissingSince ?? now
+            rrMissingSince = since
+            if !noRR, now.timeIntervalSince(since) >= Self.noRRAfter {
+                noRR = true
+                current = HRVResult(status: .collecting(have: 0, need: window.seconds), validPairs: 0, artifactFraction: 0)
+            }
+        }
         let newBeats = processor.process(m, receivedAt: now)
         guard !newBeats.isEmpty else { return }
         beats.append(contentsOf: newBeats)
@@ -53,6 +70,8 @@ final class LiveSession {
         processor.markGap()
         store.flush()
         bpm = nil
+        rrMissingSince = nil
+        if noRR { noRR = false }
         current = HRVResult(status: .collecting(have: 0, need: window.seconds), validPairs: 0, artifactFraction: 0)
         segment += 1
     }

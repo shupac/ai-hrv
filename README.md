@@ -2,17 +2,7 @@
 
 Minimal iPhone app: connects to a Bluetooth heart-rate chest strap (e.g. Powr Labs), reads RR intervals from the standard Heart Rate Service, and shows artifact-filtered RMSSD live and per recorded session. Native Swift (SwiftUI, CoreBluetooth, Swift Charts) with no dependencies. All data stays on the device.
 
-## 1. Verify the strap sends RR intervals
-
-Put the strap on (it wakes on skin contact), make sure it isn't connected to your phone or another app, then run:
-
-```sh
-swift tools/hrscan.swift            # or: swift tools/hrscan.swift powr
-```
-
-Each notification prints with its flags, BPM and RR values. After Ctrl-C you get a PASS/FAIL summary. Terminal needs Bluetooth permission (System Settings → Privacy & Security → Bluetooth).
-
-## 2. Build and install
+## Build and install
 
 ```sh
 open HRV.xcodeproj    # pick your iPhone, press Run
@@ -70,3 +60,13 @@ Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iP
 - If the strap drops out, a pending reconnect stays active and it resumes automatically when back in range, including in the background. The gap is marked and HRV never spans it.
 - If iOS terminates the app for memory, Bluetooth state restoration relaunches it and recording continues.
 - **If you swipe the app away in the app switcher, iOS stops all Bluetooth delivery.** Recording pauses until you open the app again.
+
+## Troubleshooting: strap doesn't send RR intervals
+
+Most chest straps send RR intervals, which HRV needs. If one doesn't, the Live tab says "Strap doesn't send RR intervals" after about 15 s. To check a strap from the Mac, put it on (it wakes on skin contact), make sure it isn't connected to your phone or another app, then run:
+
+```sh
+swift tools/hrscan.swift            # or: swift tools/hrscan.swift powr
+```
+
+Each notification prints with its flags, BPM and RR values. After Ctrl-C you get a PASS/FAIL summary. Terminal needs Bluetooth permission (System Settings → Privacy & Security → Bluetooth).

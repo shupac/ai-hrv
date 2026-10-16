@@ -44,7 +44,7 @@ final class AppModel {
         let connected = note == nil
         return .init(rmssd: connected ? r.rmssd.map { Int($0.rounded()) } : nil,
                      bpm: connected ? live.bpm : nil,
-                     note: note ?? (r.rmssd == nil ? r.shortMessage : nil),
+                     note: note ?? (live.noRR ? "No RR data" : r.rmssd == nil ? r.shortMessage : nil),
                      window: live.window.label,
                      updated: Date())
     }

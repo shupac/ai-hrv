@@ -150,6 +150,47 @@ struct PipelineTests {
         #expect(after.first?.time == t0.addingTimeInterval(100))
     }
 
+    @Test func flagsStrapWithoutRR() {
+        let session = LiveSession(store: DayStore(root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)))
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        func packet(bpm: Int = 70, contact: Bool? = true, rr: [Double] = []) -> HeartRateMeasurement {
+            HeartRateMeasurement(bpm: bpm, contactDetected: contact, energyExpended: nil, rrIntervalsMs: rr)
+        }
+        func send(_ m: HeartRateMeasurement, from start: Double, seconds: Int) {
+            for i in 0..<seconds { session.handle(m, at: t0.addingTimeInterval(start + Double(i))) }
+        }
+
+        send(packet(), from: 0, seconds: 15)            // t = 0…14
+        #expect(!session.noRR)
+        session.handle(packet(), at: t0.addingTimeInterval(15))
+        #expect(session.noRR)
+        #expect(session.current.rmssd == nil)
+        session.handle(packet(rr: [857]), at: t0.addingTimeInterval(16))
+        #expect(!session.noRR)
+
+        // A contact problem, or 0 bpm, in between restarts the count.
+        send(packet(), from: 20, seconds: 10)
+        session.handle(packet(contact: false), at: t0.addingTimeInterval(30))
+        send(packet(), from: 31, seconds: 10)
+        #expect(!session.noRR)
+        session.handle(packet(bpm: 0, contact: nil), at: t0.addingTimeInterval(41))
+        send(packet(), from: 42, seconds: 10)
+        #expect(!session.noRR)
+
+        // Neither ever triggers it on its own.
+        send(packet(contact: false), from: 60, seconds: 30)
+        send(packet(bpm: 0, contact: nil), from: 90, seconds: 30)
+        #expect(!session.noRR)
+
+        // Disconnecting clears it.
+        send(packet(), from: 120, seconds: 20)
+        #expect(session.noRR)
+        session.handleDisconnect()
+        #expect(!session.noRR)
+        send(packet(), from: 140, seconds: 10)
+        #expect(!session.noRR)
+    }
+
     @Test func dayStoreRoundTripAndTags() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = DayStore(root: root)

@@ -38,6 +38,8 @@ struct LiveView: View {
         return HStack(spacing: 16) {
             if model.ble.state != .connected {
                 Text(model.ble.state.label).foregroundStyle(.secondary)
+            } else if model.live.noRR {
+                Text("Strap doesn't send RR intervals").foregroundStyle(.orange)
             } else if let rmssd = r.rmssd {
                 Text("\(Int(rmssd.rounded())) ms").font(.title.bold())
             } else {
@@ -47,7 +49,7 @@ struct LiveView: View {
             if let bpm = model.live.bpm {
                 Label("\(bpm)", systemImage: "heart.fill").foregroundStyle(.red)
             }
-            if model.ble.state == .connected {
+            if model.ble.state == .connected, !model.live.noRR {
                 Label("\(Int((r.artifactFraction * 100).rounded()))%", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(r.artifactFraction > HRVCalculator.maxArtifactFraction ? .orange : .secondary)
             }
