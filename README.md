@@ -25,7 +25,7 @@ xcodebuild build -scheme HRV -destination 'generic/platform=iOS' -derivedDataPat
 xcrun devicectl device install app --device <device-id> build/Build/Products/Debug-iphoneos/HRV.app
 ```
 
-Signing uses the free personal team, so the install expires after 7 days. Re-run to refresh it. On first launch, iOS may ask you to trust the developer: Settings → General → VPN & Device Management.
+Signing uses a paid Apple Developer Program team, so development installs stay valid for a year (until the provisioning profile expires).
 
 Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
 
@@ -70,7 +70,3 @@ Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iP
 - If the strap drops out, a pending reconnect stays active and it resumes automatically when back in range, including in the background. The gap is marked and HRV never spans it.
 - If iOS terminates the app for memory, Bluetooth state restoration relaunches it and recording continues.
 - **If you swipe the app away in the app switcher, iOS stops all Bluetooth delivery.** Recording pauses until you open the app again.
-
-## Notes
-
-- **Possible strap upgrade:** [Wahoo TRACKR Heart Rate](https://www.wahoofitness.com/devices/running/heart-rate-monitors/trackr-heart-rate-buy). It's about $99, rechargeable, and supports up to 3 simultaneous connections, so the phone, Watch and Mac could connect at the same time. Not yet verified with this app: confirm it sends RR intervals with `swift tools/hrscan.swift`.
