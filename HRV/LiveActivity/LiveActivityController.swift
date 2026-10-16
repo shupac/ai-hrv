@@ -36,6 +36,27 @@ final class LiveActivityController {
         Task { await activity.update(c) }
     }
 
+    func end() {
+        activity = nil
+        let all = Activity<HRVActivityAttributes>.activities
+        Task {
+            for a in all { await a.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
+    /// For when the app is swiped away. iOS only reports that while the app is running (the strap
+    /// wakes it about every second) and gives it a few seconds, so this blocks briefly.
+    func endBeforeTermination() {
+        let all = Activity<HRVActivityAttributes>.activities
+        guard !all.isEmpty else { return }
+        let done = DispatchSemaphore(value: 0)
+        Task.detached {
+            for a in all { await a.end(nil, dismissalPolicy: .immediate) }
+            done.signal()
+        }
+        _ = done.wait(timeout: .now() + 2)
+    }
+
     private func content(_ s: State) -> ActivityContent<State> {
         ActivityContent(state: s, staleDate: s.updated.addingTimeInterval(Self.staleAfter))
     }

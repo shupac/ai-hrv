@@ -19,14 +19,24 @@ final class AppModel {
         }
         ble.onDisconnect = { [unowned self] in
             live.handleDisconnect()
-            activity.update(activityState(note: "Reconnecting…"), force: true)
+            // It can't be restarted from the background, so it returns the next time the app is opened.
+            activity.end()
         }
         live.onChange = { [prompter] event in await prompter.handle(event) }
+        NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification,
+                                               object: nil, queue: nil) { [activity] _ in
+            activity.endBeforeTermination()
+        }
     }
 
     /// Starts the Live Activity if needed; only possible while the app is in the foreground.
     func startLiveActivity() {
-        activity.start(with: activityState(note: ble.state == .connected ? nil : ble.state.label))
+        activity.start(with: activityState())
+    }
+
+    /// The Live Activity is only shown while the strap is connected; the first packet starts it.
+    func appBecameActive() {
+        if ble.state == .connected { startLiveActivity() } else { activity.end() }
     }
 
     private func activityState(note: String? = nil) -> LiveActivityController.State {
@@ -71,7 +81,7 @@ struct HRVApp: App {
         .onChange(of: scenePhase, initial: true) { _, phase in
             // Keep the screen awake while the app is in front.
             UIApplication.shared.isIdleTimerDisabled = phase == .active
-            if phase == .active { model.startLiveActivity() }
+            if phase == .active { model.appBecameActive() }
             if phase != .active { model.store.flush() }
         }
     }

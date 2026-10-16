@@ -57,7 +57,10 @@ Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iP
 - The Strap tab shows strap battery when the strap reports it.
 - **Live Activity** (`HRVWidget/`, `HRV/LiveActivity/`):
   - Shows current HRV and HR on the Lock Screen, and in the Mac menu bar on macOS 26+ when iPhone Mirroring is set up.
-  - It starts whenever the app comes to the foreground and updates at most every 10 s from the background.
+  - It starts when the app is in the foreground with the strap connected, and updates at most every 10 s from the background.
+  - It ends as soon as the strap disconnects. iOS doesn't let it restart from the background, so it reappears the next time you open the app with the strap connected.
+  - Swiping the app away ends it too (best effort: iOS only tells the app while it's running, which it is while the strap streams). If it's missed, it shows "No recent data" after 90 s and is removed the next time you open the app.
+- **Swiping the app away stops recording:** iOS doesn't relaunch an app you swiped away, so it won't reconnect to the strap until you open it again.
   - It shows "—" after 90 s without data.
   - iOS ends it after about 8 hours, and it restarts the next time you open the app.
 
