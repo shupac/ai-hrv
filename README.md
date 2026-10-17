@@ -53,6 +53,7 @@ GitHub Actions runs the tests on every pull request and push to `main` (`.github
   - Each detected change becomes a tag. Between 22:00 and 07:00 the tag is recorded without a notification.
   - You can answer from the Lock Screen with a typed reply or a quick option.
 - The Strap tab shows strap battery when the strap reports it.
+- **Connection log** (Strap tab → Connection log, `BLE/ConnectionLog.swift`): every connect, disconnect, failed connect, Bluetooth-off and iOS relaunch, with the error domain, code and description and how long a reconnect took. It keeps the newest 500 events in `Documents/connection-log.json` and can be shared as text. It holds no heart-rate data.
 - **Live Activity** (`HRVWidget/`, `HRV/LiveActivity/`):
   - Shows current HRV and HR on the Lock Screen, and in the Mac menu bar on macOS 26+ when iPhone Mirroring is set up.
   - It starts when the app is in the foreground with the strap connected, and updates at most every 10 s from the background.
@@ -68,6 +69,7 @@ GitHub Actions runs the tests on every pull request and push to `main` (`.github
 - If the strap drops out, a pending reconnect stays active and it resumes automatically when back in range, including in the background. The gap is marked and HRV never spans it.
 - If iOS terminates the app for memory, Bluetooth state restoration relaunches it and recording continues.
 - **If you swipe the app away in the app switcher, iOS stops all Bluetooth delivery.** Recording pauses until you open the app again.
+- **Recording stopped:** if no packet arrives for about a minute, for any reason (strap off or out of range, pairing lost, Bluetooth off, app swiped away), one "Recording stopped" notification fires. Each packet pushes a scheduled notification back, because the app gets no time to run once data stops. Once data flows again it's replaced by "Recording resumed", which says roughly how long data was missing. Forgetting the strap cancels both. It also fires when you take the strap off on purpose.
 
 ## Troubleshooting: strap doesn't send RR intervals
 
@@ -78,3 +80,7 @@ swift tools/hrscan.swift            # or: swift tools/hrscan.swift powr
 ```
 
 Each notification prints with its flags, BPM and RR values. After Ctrl-C you get a PASS/FAIL summary. Terminal needs Bluetooth permission (System Settings → Privacy & Security → Bluetooth).
+
+## Troubleshooting: strap won't reconnect (pairing lost)
+
+Straps with secure pairing (e.g. Polar H10 on firmware 4.x) store keys for each paired phone. If those stop matching, the phone can't reconnect: forget the strap in Settings → Bluetooth, pair it again, and the app picks it back up. Strap tab → Connection log shows the error codes of recent dropouts.

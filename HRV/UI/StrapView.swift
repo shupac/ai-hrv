@@ -54,10 +54,14 @@ struct StrapView: View {
 
                 if ble.savedDeviceID != nil {
                     Section {
-                        Button("Forget this strap", role: .destructive) { ble.forget() }
+                        Button("Forget this strap", role: .destructive) { model.forgetStrap() }
                     } footer: {
                         Text("The app reconnects to the saved strap automatically whenever it's in range, including in the background.")
                     }
+                }
+
+                Section {
+                    NavigationLink("Connection log") { ConnectionLogView(log: ble.log) }
                 }
 
                 Section {} footer: {
@@ -94,5 +98,48 @@ struct StrapView: View {
         case ..<88: "battery.75percent"
         default: "battery.100percent"
         }
+    }
+}
+
+/// Connect, disconnect and failure events, newest first, for diagnosing dropouts.
+struct ConnectionLogView: View {
+    let log: ConnectionLog
+
+    var body: some View {
+        List(log.events.reversed()) { e in
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(title(e))
+                    Spacer()
+                    Text(e.time.formatted(date: .abbreviated, time: .standard))
+                        .foregroundStyle(.secondary).monospacedDigit()
+                }
+                if let code = e.errorCode, let domain = e.errorDomain {
+                    Text("\(domain) \(code): \(e.errorDescription ?? "")")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .overlay {
+            if log.events.isEmpty { ContentUnavailableView("No events", systemImage: "list.bullet") }
+        }
+        .navigationTitle("Connection log")
+        .toolbar {
+            ShareLink(item: log.text)
+                .disabled(log.events.isEmpty)
+        }
+    }
+
+    private func title(_ e: ConnectionEvent) -> String {
+        var t = switch e.kind {
+        case .connected: "Connected"
+        case .disconnected: "Disconnected"
+        case .connectFailed: "Connect failed"
+        case .bluetoothOff: "Bluetooth off"
+        case .restored: "Relaunched by iOS"
+        }
+        if e.requested { t += " (by app)" }
+        if let d = e.downtime { t += " after \(Duration.seconds(d.rounded()).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .narrow)))" }
+        return t
     }
 }

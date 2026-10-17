@@ -1,3 +1,4 @@
+import CoreBluetooth
 import Foundation
 import Testing
 @testable import HRV
@@ -290,6 +291,62 @@ struct ChangeDetectorTests {
         _ = feed(&s, Array(repeating: 50, count: 600), from: 0)
         s.snooze(until: t0.addingTimeInterval(4000))
         #expect(feed(&s, Array(repeating: 20, count: 30), from: 3000) == nil)
+    }
+}
+
+struct ConnectionTests {
+    let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+
+    @Test func downtimeSpansUnrequestedDropout() {
+        var m = ConnectionMonitor()
+        _ = m.handle(.disconnected, device: "H10", error: CBError(.connectionTimeout), at: t0)
+        _ = m.handle(.connectFailed, device: "H10", error: CBError(.connectionFailed), at: t0.addingTimeInterval(10))
+        let back = m.handle(.connected, device: "H10", at: t0.addingTimeInterval(42))
+        #expect(back.downtime == 42)
+        #expect(m.handle(.connected, device: "H10", at: t0.addingTimeInterval(50)).downtime == nil)
+
+        _ = m.handle(.disconnected, device: "H10", requested: true, at: t0.addingTimeInterval(60))
+        #expect(m.handle(.connected, device: "H10", at: t0.addingTimeInterval(90)).downtime == nil)
+    }
+
+    @Test func recordsErrorDetails() {
+        var m = ConnectionMonitor()
+        let e = m.handle(.disconnected, device: "H10", error: CBError(.peerRemovedPairingInformation), at: t0)
+        #expect(e.errorDomain == CBErrorDomain)
+        #expect(e.errorCode == CBError.Code.peerRemovedPairingInformation.rawValue)
+        #expect(e.errorDescription?.isEmpty == false)
+        #expect(e.line.contains("\(CBErrorDomain) 14"))
+    }
+
+    @Test func logPersistsAndKeepsNewest() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let log = ConnectionLog(root: dir)
+        for i in 0..<(ConnectionLog.limit + 5) {
+            log.append(ConnectionEvent(time: t0.addingTimeInterval(Double(i)), kind: .connected, device: "H10"))
+        }
+        #expect(log.events.count == ConnectionLog.limit)
+        #expect(log.events.first?.time == t0.addingTimeInterval(5))
+
+        let reopened = ConnectionLog(root: dir)
+        #expect(reopened.events == log.events)
+        #expect(reopened.text.split(separator: "\n").count == ConnectionLog.limit)
+    }
+}
+
+struct RecordingStoppedAlertTests {
+    @Test func reschedulesAtMostEvery15s() {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        #expect(RecordingStoppedAlert.needsReschedule(last: nil, now: t0))
+        #expect(!RecordingStoppedAlert.needsReschedule(last: t0, now: t0.addingTimeInterval(14)))
+        #expect(RecordingStoppedAlert.needsReschedule(last: t0, now: t0.addingTimeInterval(15)))
+    }
+
+    @Test func resumesOnlyAfterTheStoppedAlertFired() {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        #expect(RecordingStoppedAlert.stoppedFor(last: nil, now: t0) == nil)
+        #expect(RecordingStoppedAlert.stoppedFor(last: t0, now: t0.addingTimeInterval(59)) == nil)
+        #expect(RecordingStoppedAlert.stoppedFor(last: t0, now: t0.addingTimeInterval(60)) == 60)
+        #expect(RecordingStoppedAlert.stoppedFor(last: t0, now: t0.addingTimeInterval(3600)) == 3600)
     }
 }
 

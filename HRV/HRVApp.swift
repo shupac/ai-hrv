@@ -7,12 +7,14 @@ final class AppModel {
     let live: LiveSession
     let prompter: ChangePrompter
     let activity = LiveActivityController()
+    let stopped = RecordingStoppedAlert()
 
     init() {
         live = LiveSession(store: store)
         prompter = ChangePrompter(store: store)
         ble.onMeasurement = { [unowned self] m, date in
             live.handle(m, at: date)
+            stopped.dataArrived(at: date)
             // Covers the app sitting in the foreground past the ~8 h limit.
             if UIApplication.shared.applicationState == .active { startLiveActivity() }
             activity.update(activityState())
@@ -47,6 +49,12 @@ final class AppModel {
                      note: note ?? (live.noRR ? "No RR data" : r.rmssd == nil ? r.shortMessage : nil),
                      window: live.window.label,
                      updated: Date())
+    }
+
+    /// Recording is meant to stop, so don't warn that it stopped.
+    func forgetStrap() {
+        stopped.cancel()
+        ble.forget()
     }
 
     func tag(_ label: String, at time: Date = Date()) {
