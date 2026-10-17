@@ -63,6 +63,10 @@ struct StrapView: View {
                 Section {
                     NavigationLink("Connection log") { ConnectionLogView(log: ble.log) }
                 }
+
+                Section {} footer: {
+                    Text(BuildInfo.current.line()).monospacedDigit().lineLimit(1).textSelection(.enabled)
+                }
             }
             .navigationTitle("Strap")
         }

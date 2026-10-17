@@ -23,6 +23,9 @@ couldn't verify and list the exact steps for the user to check on the phone.
 
 Don't explain features in the app itself. If copy is needed, keep it concise.
 
+Linear issues: size each one for a single agent session, with "Done when" and, when relevant, "Check on phone"
+sections. Status, task lists and future ideas live in Linear, never in repo docs.
+
 ## Committing
 
 The agent writes commit messages. Before each commit:
@@ -54,5 +57,5 @@ One logical change per commit; split unrelated changes.
 - Status, milestones and issues: Linear project AI-HRV, team Tempo (issue IDs `TEM-<n>`):
   https://linear.app/buildwithtempo/project/ai-hrv-599879a7dc57. Read the issue before starting work on it.
 - Goals and retro notes: docs/plan.md
-- Before working on sync: docs/cloud-sync.md
+- Before working on sync: docs/cloud-sync.md (Shu's, don't edit) and docs/cloud-sync-notes.md
 - Before touching HRV calculations: README, "How HRV is computed"
