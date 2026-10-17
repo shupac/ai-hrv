@@ -340,6 +340,14 @@ struct RecordingStoppedAlertTests {
         #expect(!RecordingStoppedAlert.needsReschedule(last: t0, now: t0.addingTimeInterval(14)))
         #expect(RecordingStoppedAlert.needsReschedule(last: t0, now: t0.addingTimeInterval(15)))
     }
+
+    @Test func resumesOnlyAfterTheStoppedAlertFired() {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        #expect(RecordingStoppedAlert.stoppedFor(last: nil, now: t0) == nil)
+        #expect(RecordingStoppedAlert.stoppedFor(last: t0, now: t0.addingTimeInterval(59)) == nil)
+        #expect(RecordingStoppedAlert.stoppedFor(last: t0, now: t0.addingTimeInterval(60)) == 60)
+        #expect(RecordingStoppedAlert.stoppedFor(last: t0, now: t0.addingTimeInterval(3600)) == 3600)
+    }
 }
 
 struct BuildInfoTests {

@@ -69,7 +69,7 @@ GitHub Actions runs the tests on every pull request and push to `main` (`.github
 - If the strap drops out, a pending reconnect stays active and it resumes automatically when back in range, including in the background. The gap is marked and HRV never spans it.
 - If iOS terminates the app for memory, Bluetooth state restoration relaunches it and recording continues.
 - **If you swipe the app away in the app switcher, iOS stops all Bluetooth delivery.** Recording pauses until you open the app again.
-- **Recording stopped:** if no packet arrives for about a minute, for any reason (strap off or out of range, pairing lost, Bluetooth off, app swiped away), one "Recording stopped" notification fires. Each packet pushes a scheduled notification back, because the app gets no time to run once data stops. It's cleared once data flows again, and forgetting the strap cancels it. It also fires when you take the strap off on purpose.
+- **Recording stopped:** if no packet arrives for about a minute, for any reason (strap off or out of range, pairing lost, Bluetooth off, app swiped away), one "Recording stopped" notification fires. Each packet pushes a scheduled notification back, because the app gets no time to run once data stops. Once data flows again it's replaced by "Recording resumed", which says roughly how long data was missing. Forgetting the strap cancels both. It also fires when you take the strap off on purpose.
 
 ## Troubleshooting: strap doesn't send RR intervals
 
