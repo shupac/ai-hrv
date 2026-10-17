@@ -123,6 +123,69 @@ enum PolarPMD {
         return Float(bitPattern: bits)
     }
 
+    // MARK: - Setup
+
+    /// The accelerometer handshake on one connection: features → get settings → start.
+    /// Pure, so it can be tested without CoreBluetooth.
+    struct Setup: Equatable {
+        enum Status: Equatable {
+            case idle, requestingSettings, starting, streaming, unsupported
+            case failed(UInt8)   // PMD error status
+        }
+
+        private(set) var status = Status.idle
+        private(set) var settings: AccSettings?
+        private(set) var factor: Float = 1
+        private(set) var lastTimestamp: UInt64 = 0
+
+        /// Handles a control point value and returns the command to write next, if any.
+        mutating func handle(controlPoint data: Data) -> Data? {
+            if data.first == 0x0F {
+                guard PolarPMD.supportsAccelerometer(features: data) else {
+                    status = .unsupported
+                    return nil
+                }
+                status = .requestingSettings
+                return getAccSettings
+            }
+            guard let r = Response(data), r.measurementType == accType else { return nil }
+            switch r.opCode {
+            case getSettingsOp:
+                guard r.status == Response.success,
+                      let s = AccSettings(available: parseSettings(r.parameters)) else {
+                    status = .failed(r.status)
+                    return nil
+                }
+                settings = s
+                status = .starting
+                return s.startCommand
+            case startOp:
+                switch r.status {
+                case Response.success:
+                    factor = PolarPMD.factor(fromStartParameters: r.parameters)
+                    status = .streaming
+                // After state restoration the strap may still be streaming: keep the default factor.
+                case Response.alreadyInState:
+                    status = .streaming
+                default:
+                    status = .failed(r.status)
+                }
+                return nil
+            default:
+                return nil
+            }
+        }
+
+        /// Parses a data notification. Nil until the settings are known.
+        mutating func frame(_ data: Data) -> AccFrame? {
+            guard let settings,
+                  let f = parseAccFrame(data, previousTimestamp: lastTimestamp,
+                                        sampleRate: settings.sampleRate, factor: factor) else { return nil }
+            lastTimestamp = f.timestamp
+            return f
+        }
+    }
+
     // MARK: - Data frames
 
     /// Parses an ACC notification: type, 8-byte timestamp, frame type, content.

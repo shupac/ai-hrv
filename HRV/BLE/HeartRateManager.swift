@@ -55,9 +55,7 @@ final class HeartRateManager: NSObject {
     @ObservationIgnored private var peripheral: CBPeripheral?
     @ObservationIgnored private var userDisconnected = false
     @ObservationIgnored private var monitor = ConnectionMonitor()
-    @ObservationIgnored private var acc: PolarPMD.AccSettings?
-    @ObservationIgnored private var accFactor: Float = 1
-    @ObservationIgnored private var lastAccTimestamp: UInt64 = 0
+    @ObservationIgnored private var pmd = PolarPMD.Setup()
 
     var savedDeviceID: UUID? {
         get { UserDefaults.standard.string(forKey: Self.savedDeviceKey).flatMap(UUID.init) }
@@ -134,7 +132,12 @@ final class HeartRateManager: NSObject {
             .characteristics?.first(where: { $0.uuid == Self.hrMeasurement }) {
             p.setNotifyValue(true, for: c)
             if let s = p.services?.first(where: { $0.uuid == PolarPMD.service }) {
-                enablePMD(p, s)
+                // A restored service may come back without its characteristics.
+                if s.characteristics == nil {
+                    p.discoverCharacteristics([PolarPMD.controlPoint, PolarPMD.data], for: s)
+                } else {
+                    enablePMD(p, s)
+                }
             } else {
                 p.discoverServices([PolarPMD.service])
             }
@@ -145,7 +148,7 @@ final class HeartRateManager: NSObject {
 
     /// Data notifications first, then the control point; enabling the latter reads the features.
     private func enablePMD(_ p: CBPeripheral, _ s: CBService) {
-        resetPMD()
+        pmd = PolarPMD.Setup()
         let chars = s.characteristics ?? []
         guard let data = chars.first(where: { $0.uuid == PolarPMD.data }),
               let cp = chars.first(where: { $0.uuid == PolarPMD.controlPoint }) else { return }
@@ -154,27 +157,9 @@ final class HeartRateManager: NSObject {
         if cp.isNotifying { p.readValue(for: cp) } else { p.setNotifyValue(true, for: cp) }
     }
 
-    private func resetPMD() {
-        acc = nil
-        accFactor = 1
-        lastAccTimestamp = 0
-    }
-
     private func handleControlPoint(_ p: CBPeripheral, _ c: CBCharacteristic, _ data: Data) {
-        if PolarPMD.supportsAccelerometer(features: data) {
-            p.writeValue(PolarPMD.getAccSettings, for: c, type: .withResponse)
-            return
-        }
-        guard let r = PolarPMD.Response(data), r.measurementType == PolarPMD.accType else { return }
-        switch r.opCode {
-        case PolarPMD.getSettingsOp where r.status == PolarPMD.Response.success:
-            guard let settings = PolarPMD.AccSettings(available: PolarPMD.parseSettings(r.parameters)) else { return }
-            acc = settings
-            p.writeValue(settings.startCommand, for: c, type: .withResponse)
-        case PolarPMD.startOp where r.status == PolarPMD.Response.success:
-            accFactor = PolarPMD.factor(fromStartParameters: r.parameters)
-        default:
-            break // includes "already in state" after a restore: keep the defaults
+        if let command = pmd.handle(controlPoint: data) {
+            p.writeValue(command, for: c, type: .withResponse)
         }
     }
 
@@ -260,7 +245,7 @@ extension HeartRateManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) {
         onDisconnect?()
         record(.disconnected, p, error: error, requested: userDisconnected || p != peripheral)
-        resetPMD()
+        pmd = PolarPMD.Setup()
         guard !userDisconnected, p == peripheral else { return }
         state = .reconnecting
         central.connect(p)
@@ -297,11 +282,7 @@ extension HeartRateManager: CBPeripheralDelegate {
             return
         }
         if c.uuid == PolarPMD.data, let data = c.value {
-            guard let acc, let frame = PolarPMD.parseAccFrame(data, previousTimestamp: lastAccTimestamp,
-                                                              sampleRate: acc.sampleRate, factor: accFactor)
-            else { return }
-            lastAccTimestamp = frame.timestamp
-            onAccelerometer?(frame, Date())
+            if let frame = pmd.frame(data) { onAccelerometer?(frame, Date()) }
             return
         }
         if c.uuid == Self.batteryLevel, let level = c.value?.first {

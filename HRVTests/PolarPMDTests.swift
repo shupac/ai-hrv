@@ -56,6 +56,63 @@ struct PolarPMDTests {
         #expect(PolarPMD.Response(Self.hex("0F 02 00 00")) == nil)
     }
 
+    // MARK: - Setup
+
+    private static let h10Features = hex("0F 07 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")   // ECG, PPG, ACC
+    private static let h10Settings = hex("F0 01 02 00 00 00 04 19 00 32 00 64 00 C8 00 01 01 10 00 02 03 02 00 04 00 08 00")
+    private static let h10Frame = hex("02 EA 54 A2 42 8B 45 52 08 01 45 FF E4 FF B5 03 45 FF E4 FF B8 03")
+
+    @Test func h10Handshake() {
+        var s = PolarPMD.Setup()
+        let early = s.frame(Self.h10Frame)
+        #expect(early == nil)   // no settings yet
+        #expect(s.handle(controlPoint: Self.h10Features) == Self.hex("01 02"))
+        #expect(s.status == .requestingSettings)
+        #expect(s.handle(controlPoint: Self.h10Settings) == Self.hex("02 02 00 01 19 00 01 01 10 00 02 01 08 00"))
+        #expect(s.status == .starting)
+        #expect(s.handle(controlPoint: Self.hex("F0 02 02 00 00 01")) == nil)
+        #expect(s.status == .streaming)
+        #expect(s.factor == 1)
+
+        let frame = s.frame(Self.h10Frame)
+        #expect(frame?.samples.count == 2)
+        #expect(s.lastTimestamp == 599_618_164_814_402_794)
+    }
+
+    @Test func strapWithoutAccelerometer() {
+        var s = PolarPMD.Setup()
+        #expect(s.handle(controlPoint: Self.hex("0F 01")) == nil)   // ECG only
+        #expect(s.status == .unsupported)
+    }
+
+    @Test func setupErrors() {
+        var s = PolarPMD.Setup()
+        _ = s.handle(controlPoint: Self.h10Features)
+        // Settings request rejected (status 2: invalid measurement type).
+        #expect(s.handle(controlPoint: Self.hex("F0 01 02 02 00")) == nil)
+        #expect(s.status == .failed(2))
+        #expect(s.settings == nil)
+
+        var t = PolarPMD.Setup()
+        _ = t.handle(controlPoint: Self.h10Features)
+        _ = t.handle(controlPoint: Self.h10Settings)
+        #expect(t.handle(controlPoint: Self.hex("F0 02 02 05 00")) == nil)
+        #expect(t.status == .failed(5))
+        // Replies for other measurement types are ignored.
+        #expect(t.handle(controlPoint: Self.hex("F0 02 00 00 00")) == nil)
+        #expect(t.status == .failed(5))
+    }
+
+    @Test func alreadyStreamingAfterRestore() {
+        var s = PolarPMD.Setup()
+        _ = s.handle(controlPoint: Self.h10Features)
+        _ = s.handle(controlPoint: Self.h10Settings)
+        #expect(s.handle(controlPoint: Self.hex("F0 02 02 06 00")) == nil)
+        #expect(s.status == .streaming)
+        let frame = s.frame(Self.h10Frame)
+        #expect(frame != nil)
+    }
+
     // MARK: - Frames
 
     @Test func h10RawFrame() throws {
