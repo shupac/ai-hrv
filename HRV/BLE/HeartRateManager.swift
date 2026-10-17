@@ -44,10 +44,14 @@ final class HeartRateManager: NSObject {
     private(set) var deviceName: String?
     private(set) var lastPacket: Date?
     private(set) var battery: Int?          // strap battery %, if it reports one
+    /// The strap's pairing broke; it must be forgotten in Bluetooth settings and paired again.
+    private(set) var pairingLost = false
     let log: ConnectionLog
 
     @ObservationIgnored var onMeasurement: ((HeartRateMeasurement, Date) -> Void)?
     @ObservationIgnored var onDisconnect: (() -> Void)?
+    /// Called once per broken pairing, with the strap's name.
+    @ObservationIgnored var onPairingLost: ((String?) -> Void)?
 
     @ObservationIgnored private var central: CBCentralManager!
     @ObservationIgnored private var peripheral: CBPeripheral?
@@ -95,6 +99,7 @@ final class HeartRateManager: NSObject {
         }
         guard let p = central.retrievePeripherals(withIdentifiers: [id]).first else { return }
         savedDeviceID = id
+        resetPairingLost()
         connect(p)
     }
 
@@ -102,6 +107,7 @@ final class HeartRateManager: NSObject {
     func forget() {
         savedDeviceID = nil
         userDisconnected = true
+        resetPairingLost()
         if let p = peripheral { central.cancelPeripheralConnection(p) }
         peripheral = nil
         deviceName = nil
@@ -121,7 +127,16 @@ final class HeartRateManager: NSObject {
     }
 
     private func record(_ kind: ConnectionEvent.Kind, _ p: CBPeripheral?, error: Error? = nil, requested: Bool = false) {
-        log.append(monitor.handle(kind, device: p?.name ?? deviceName, error: error, requested: requested, at: Date()))
+        let device = p?.name ?? deviceName
+        log.append(monitor.handle(kind, device: device, error: error, requested: requested, at: Date()))
+        guard monitor.pairingLost != pairingLost else { return }
+        pairingLost = monitor.pairingLost
+        if pairingLost { onPairingLost?(device) }
+    }
+
+    private func resetPairingLost() {
+        monitor.reset()
+        pairingLost = false
     }
 
     private func subscribe(_ p: CBPeripheral) {

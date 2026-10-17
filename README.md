@@ -46,6 +46,7 @@ Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iP
   - You can answer from the Lock Screen with a typed reply or a quick option.
 - The Strap tab shows strap battery when the strap reports it.
 - **Connection log** (Strap tab → Connection log, `BLE/ConnectionLog.swift`): every connect, disconnect, failed connect, Bluetooth-off and iOS relaunch, with the error domain, code and description and how long a reconnect took. It keeps the newest 500 events in `Documents/connection-log.json` and can be shared as text. It holds no heart-rate data.
+- **Pairing lost:** if iOS reports that the strap's pairing keys no longer match (`CBError` 14 `peerRemovedPairingInformation` or 15 `encryptionTimedOut`), the app sends one "Strap pairing lost" notification, also during quiet hours, and the Strap tab shows "Pairing lost". It keeps trying to reconnect, so recording resumes once the strap is paired again.
 - **Live Activity** (`HRVWidget/`, `HRV/LiveActivity/`):
   - Shows current HRV and HR on the Lock Screen, and in the Mac menu bar on macOS 26+ when iPhone Mirroring is set up.
   - It starts when the app is in the foreground with the strap connected, and updates at most every 10 s from the background.
@@ -71,3 +72,7 @@ swift tools/hrscan.swift            # or: swift tools/hrscan.swift powr
 ```
 
 Each notification prints with its flags, BPM and RR values. After Ctrl-C you get a PASS/FAIL summary. Terminal needs Bluetooth permission (System Settings → Privacy & Security → Bluetooth).
+
+## Troubleshooting: strap won't reconnect (pairing lost)
+
+Straps with secure pairing (e.g. Polar H10 on firmware 4.x) store keys for each paired phone. If those stop matching, the phone can't reconnect: forget the strap in Settings → Bluetooth, pair it again, and the app picks it back up. Strap tab → Connection log shows the error codes of recent dropouts.

@@ -23,6 +23,7 @@ final class AppModel {
             activity.end()
         }
         live.onChange = { [prompter] event in await prompter.handle(event) }
+        ble.onPairingLost = { StrapAlerts.pairingLost(device: $0) }
         NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification,
                                                object: nil, queue: nil) { [activity] _ in
             activity.endBeforeTermination()

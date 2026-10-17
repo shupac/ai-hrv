@@ -12,8 +12,13 @@ struct StrapView: View {
                     LabeledContent("Strap", value: ble.deviceName ?? "None")
                     LabeledContent("Connection") {
                         HStack(spacing: 6) {
-                            Circle().fill(statusColor(ble.state)).frame(width: 8, height: 8)
-                            Text(ble.state.label)
+                            if ble.pairingLost {
+                                Circle().fill(.red).frame(width: 8, height: 8)
+                                Text("Pairing lost").foregroundStyle(.red)
+                            } else {
+                                Circle().fill(statusColor(ble.state)).frame(width: 8, height: 8)
+                                Text(ble.state.label)
+                            }
                         }
                     }
                     LabeledContent("Battery") {
