@@ -19,6 +19,8 @@ Signing uses a paid Apple Developer Program team, so development installs stay v
 
 Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
 
+GitHub Actions runs the tests on every pull request and push to `main` (`.github/workflows/test.yml`).
+
 ## How HRV is computed
 
 - **Parsing** (`HRV/Core/HeartRateParser.swift`): 0x2A37 packets carry RR in units of 1/1024 s. These are converted to ms.
