@@ -5,7 +5,8 @@
 iOS app that records heart rate and RR intervals from a BLE chest strap all day and shows HRV,
 to give feedback on physiological and psychological stress: how hard to push training and
 cognitive work, and how sleep and habits affect recovery.
-Planned: cloud sync and an MCP server so AI chatbots can analyse the data. See docs/plan.md for status.
+Planned: Polar H10 motion data, cloud sync and an MCP server so AI chatbots can analyse the data.
+Work is tracked in Linear (see "Where to look").
 
 ## Commands
 
@@ -31,6 +32,7 @@ The agent writes commit messages. Before each commit:
    update the README and include it in the same commit. Same for docs/ files the change makes wrong.
 3. Write the message: a short imperative subject line, then a body saying what changed and why,
    plus anything the user still has to verify on the phone.
+   If the work belongs to a Linear issue, put its ID in the subject, e.g. `TEM-9: Stream the H10 accelerometer`.
 
 One logical change per commit; split unrelated changes.
 
@@ -49,6 +51,8 @@ One logical change per commit; split unrelated changes.
 
 ## Where to look
 
-- Current status and milestones: docs/plan.md
+- Status, milestones and issues: Linear project AI-HRV, team Tempo (issue IDs `TEM-<n>`):
+  https://linear.app/buildwithtempo/project/ai-hrv-599879a7dc57. Read the issue before starting work on it.
+- Goals and retro notes: docs/plan.md
 - Before working on sync: docs/cloud-sync.md
 - Before touching HRV calculations: README, "How HRV is computed"
