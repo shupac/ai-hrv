@@ -44,6 +44,7 @@ final class HeartRateManager: NSObject {
     private(set) var deviceName: String?
     private(set) var lastPacket: Date?
     private(set) var battery: Int?          // strap battery %, if it reports one
+    let log: ConnectionLog
 
     @ObservationIgnored var onMeasurement: ((HeartRateMeasurement, Date) -> Void)?
     @ObservationIgnored var onDisconnect: (() -> Void)?
@@ -51,13 +52,15 @@ final class HeartRateManager: NSObject {
     @ObservationIgnored private var central: CBCentralManager!
     @ObservationIgnored private var peripheral: CBPeripheral?
     @ObservationIgnored private var userDisconnected = false
+    @ObservationIgnored private var monitor = ConnectionMonitor()
 
     var savedDeviceID: UUID? {
         get { UserDefaults.standard.string(forKey: Self.savedDeviceKey).flatMap(UUID.init) }
         set { UserDefaults.standard.set(newValue?.uuidString, forKey: Self.savedDeviceKey) }
     }
 
-    override init() {
+    init(log: ConnectionLog = ConnectionLog()) {
+        self.log = log
         super.init()
         central = CBCentralManager(delegate: self, queue: nil,
                                    options: [CBCentralManagerOptionRestoreIdentifierKey: Self.restoreID])
@@ -117,6 +120,10 @@ final class HeartRateManager: NSObject {
         central.connect(p) // no timeout: iOS keeps trying until the strap is in range
     }
 
+    private func record(_ kind: ConnectionEvent.Kind, _ p: CBPeripheral?, error: Error? = nil, requested: Bool = false) {
+        log.append(monitor.handle(kind, device: p?.name ?? deviceName, error: error, requested: requested, at: Date()))
+    }
+
     private func subscribe(_ p: CBPeripheral) {
         if let c = p.services?.first(where: { $0.uuid == Self.hrService })?
             .characteristics?.first(where: { $0.uuid == Self.hrMeasurement }) {
@@ -151,6 +158,7 @@ extension HeartRateManager: CBCentralManagerDelegate {
         case .poweredOn: resume()
         case .poweredOff:
             state = .poweredOff
+            record(.bluetoothOff, peripheral)
             onDisconnect?()
         case .unauthorized: state = .unauthorized
         case .unsupported: state = .unsupported
@@ -163,6 +171,7 @@ extension HeartRateManager: CBCentralManagerDelegate {
             peripheral = p
             deviceName = p.name
             p.delegate = self
+            record(.restored, p)
         }
     }
 
@@ -192,10 +201,12 @@ extension HeartRateManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didConnect p: CBPeripheral) {
         state = .connected
         deviceName = p.name
+        record(.connected, p)
         p.discoverServices([Self.hrService, Self.batteryService])
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect p: CBPeripheral, error: Error?) {
+        record(.connectFailed, p, error: error, requested: userDisconnected || p != peripheral)
         guard !userDisconnected, p == peripheral else { return }
         state = .reconnecting
         central.connect(p)
@@ -203,6 +214,7 @@ extension HeartRateManager: CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) {
         onDisconnect?()
+        record(.disconnected, p, error: error, requested: userDisconnected || p != peripheral)
         guard !userDisconnected, p == peripheral else { return }
         state = .reconnecting
         central.connect(p)

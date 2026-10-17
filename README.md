@@ -45,6 +45,7 @@ Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iP
   - Each detected change becomes a tag. Between 22:00 and 07:00 the tag is recorded without a notification.
   - You can answer from the Lock Screen with a typed reply or a quick option.
 - The Strap tab shows strap battery when the strap reports it.
+- **Connection log** (Strap tab → Connection log, `BLE/ConnectionLog.swift`): every connect, disconnect, failed connect, Bluetooth-off and iOS relaunch, with the error domain, code and description and how long a reconnect took. It keeps the newest 500 events in `Documents/connection-log.json` and can be shared as text. It holds no heart-rate data.
 - **Live Activity** (`HRVWidget/`, `HRV/LiveActivity/`):
   - Shows current HRV and HR on the Lock Screen, and in the Mac menu bar on macOS 26+ when iPhone Mirroring is set up.
   - It starts when the app is in the foreground with the strap connected, and updates at most every 10 s from the background.
