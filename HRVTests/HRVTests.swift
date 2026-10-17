@@ -318,6 +318,17 @@ struct ConnectionTests {
         #expect(e.line.contains("\(CBErrorDomain) 14"))
     }
 
+    @Test func accelerometerEventLines() throws {
+        var m = ConnectionMonitor()
+        var started = m.handle(.accelerometerStarted, device: "H10", at: t0)
+        started.detail = "25 Hz"
+        #expect(started.line.hasSuffix("accelerometerStarted · H10 · 25 Hz"))
+        // Events from before `detail` existed still decode.
+        let old = try JSONDecoder().decode(ConnectionEvent.self, from: Data(
+            #"{"id":"\#(UUID().uuidString)","time":0,"kind":"connected","requested":false}"#.utf8))
+        #expect(old.detail == nil)
+    }
+
     @Test func logPersistsAndKeepsNewest() {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let log = ConnectionLog(root: dir)
