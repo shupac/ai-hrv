@@ -46,7 +46,6 @@ Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iP
   - You can answer from the Lock Screen with a typed reply or a quick option.
 - The Strap tab shows strap battery when the strap reports it.
 - **Connection log** (Strap tab → Connection log, `BLE/ConnectionLog.swift`): every connect, disconnect, failed connect, Bluetooth-off and iOS relaunch, with the error domain, code and description and how long a reconnect took. It keeps the newest 500 events in `Documents/connection-log.json` and can be shared as text. It holds no heart-rate data.
-- **Pairing lost:** if iOS reports that the strap's pairing keys no longer match (`CBError` 14 `peerRemovedPairingInformation` or 15 `encryptionTimedOut`), the app sends one "Strap pairing lost" notification, also during quiet hours, and the Strap tab shows "Pairing lost". It keeps trying to reconnect, so recording resumes once the strap is paired again.
 - **Live Activity** (`HRVWidget/`, `HRV/LiveActivity/`):
   - Shows current HRV and HR on the Lock Screen, and in the Mac menu bar on macOS 26+ when iPhone Mirroring is set up.
   - It starts when the app is in the foreground with the strap connected, and updates at most every 10 s from the background.
@@ -62,7 +61,7 @@ Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iP
 - If the strap drops out, a pending reconnect stays active and it resumes automatically when back in range, including in the background. The gap is marked and HRV never spans it.
 - If iOS terminates the app for memory, Bluetooth state restoration relaunches it and recording continues.
 - **If you swipe the app away in the app switcher, iOS stops all Bluetooth delivery.** Recording pauses until you open the app again.
-- **No-data alert:** if no packet arrives for 10 minutes, for any reason (strap off or out of range, app swiped away, a silent stall), one "No heart-rate data" notification fires. Each packet pushes a scheduled notification back, because the app gets no time to run once data stops. Forgetting the strap cancels it. It also fires when you take the strap off on purpose.
+- **Recording stopped:** if no packet arrives for about a minute, for any reason (strap off or out of range, pairing lost, Bluetooth off, app swiped away), one "Recording stopped" notification fires. Each packet pushes a scheduled notification back, because the app gets no time to run once data stops. It's cleared once data flows again, and forgetting the strap cancels it. It also fires when you take the strap off on purpose.
 
 ## Troubleshooting: strap doesn't send RR intervals
 

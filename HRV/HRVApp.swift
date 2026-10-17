@@ -7,14 +7,14 @@ final class AppModel {
     let live: LiveSession
     let prompter: ChangePrompter
     let activity = LiveActivityController()
-    let noData = NoDataAlert()
+    let stopped = RecordingStoppedAlert()
 
     init() {
         live = LiveSession(store: store)
         prompter = ChangePrompter(store: store)
         ble.onMeasurement = { [unowned self] m, date in
             live.handle(m, at: date)
-            noData.dataArrived(at: date)
+            stopped.dataArrived(at: date)
             // Covers the app sitting in the foreground past the ~8 h limit.
             if UIApplication.shared.applicationState == .active { startLiveActivity() }
             activity.update(activityState())
@@ -25,10 +25,6 @@ final class AppModel {
             activity.end()
         }
         live.onChange = { [prompter] event in await prompter.handle(event) }
-        ble.onPairingLost = { [noData] device in
-            noData.cancel()   // this one already says why
-            StrapAlerts.pairingLost(device: device)
-        }
         NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification,
                                                object: nil, queue: nil) { [activity] _ in
             activity.endBeforeTermination()
@@ -55,9 +51,9 @@ final class AppModel {
                      updated: Date())
     }
 
-    /// Recording is meant to stop, so don't warn that data stopped.
+    /// Recording is meant to stop, so don't warn that it stopped.
     func forgetStrap() {
-        noData.cancel()
+        stopped.cancel()
         ble.forget()
     }
 

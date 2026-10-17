@@ -333,55 +333,11 @@ struct ConnectionTests {
     }
 }
 
-struct PairingLostTests {
-    let t0 = Date(timeIntervalSince1970: 1_700_000_000)
-
-    @Test func detectsPairingErrors() {
-        #expect(ConnectionMonitor.isPairingError(CBError(.peerRemovedPairingInformation)))
-        #expect(ConnectionMonitor.isPairingError(CBError(.encryptionTimedOut)))
-        #expect(ConnectionMonitor.isPairingError(NSError(domain: CBErrorDomain, code: 14)))
-        #expect(!ConnectionMonitor.isPairingError(CBError(.connectionTimeout)))
-        #expect(!ConnectionMonitor.isPairingError(NSError(domain: NSPOSIXErrorDomain, code: 14)))
-        #expect(!ConnectionMonitor.isPairingError(nil))
-    }
-
-    @Test func flagsOncePerBreakUntilReconnected() {
-        var m = ConnectionMonitor()
-        var alerts = 0
-        func feed(_ kind: ConnectionEvent.Kind, _ error: Error?, _ s: Double) {
-            let was = m.pairingLost
-            _ = m.handle(kind, device: "H10", error: error, at: t0.addingTimeInterval(s))
-            if m.pairingLost && !was { alerts += 1 }
-        }
-
-        feed(.disconnected, CBError(.connectionTimeout), 0)
-        #expect(alerts == 0)
-        feed(.connectFailed, CBError(.peerRemovedPairingInformation), 5)
-        feed(.connectFailed, CBError(.peerRemovedPairingInformation), 10)
-        feed(.connectFailed, CBError(.connectionFailed), 15)       // other errors in between keep it set
-        feed(.disconnected, CBError(.encryptionTimedOut), 20)
-        #expect(alerts == 1)
-        #expect(m.pairingLost)
-
-        feed(.connected, nil, 60)
-        #expect(!m.pairingLost)
-        feed(.disconnected, CBError(.encryptionTimedOut), 90)
-        #expect(alerts == 2)
-
-        m.reset()
-        #expect(!m.pairingLost)
-
-        // The old strap failing after switching to another one doesn't count.
-        _ = m.handle(.disconnected, device: "Old", error: CBError(.peerRemovedPairingInformation), requested: true, at: t0)
-        #expect(!m.pairingLost)
-    }
-}
-
-struct NoDataAlertTests {
-    @Test func reschedulesAtMostEvery30s() {
+struct RecordingStoppedAlertTests {
+    @Test func reschedulesAtMostEvery15s() {
         let t0 = Date(timeIntervalSince1970: 1_700_000_000)
-        #expect(NoDataAlert.needsReschedule(last: nil, now: t0))
-        #expect(!NoDataAlert.needsReschedule(last: t0, now: t0.addingTimeInterval(29)))
-        #expect(NoDataAlert.needsReschedule(last: t0, now: t0.addingTimeInterval(30)))
+        #expect(RecordingStoppedAlert.needsReschedule(last: nil, now: t0))
+        #expect(!RecordingStoppedAlert.needsReschedule(last: t0, now: t0.addingTimeInterval(14)))
+        #expect(RecordingStoppedAlert.needsReschedule(last: t0, now: t0.addingTimeInterval(15)))
     }
 }
