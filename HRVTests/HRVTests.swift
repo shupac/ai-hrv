@@ -376,3 +376,12 @@ struct PairingLostTests {
         #expect(!m.pairingLost)
     }
 }
+
+struct NoDataAlertTests {
+    @Test func reschedulesAtMostEvery30s() {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        #expect(NoDataAlert.needsReschedule(last: nil, now: t0))
+        #expect(!NoDataAlert.needsReschedule(last: t0, now: t0.addingTimeInterval(29)))
+        #expect(NoDataAlert.needsReschedule(last: t0, now: t0.addingTimeInterval(30)))
+    }
+}

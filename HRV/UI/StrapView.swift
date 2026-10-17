@@ -59,7 +59,7 @@ struct StrapView: View {
 
                 if ble.savedDeviceID != nil {
                     Section {
-                        Button("Forget this strap", role: .destructive) { ble.forget() }
+                        Button("Forget this strap", role: .destructive) { model.forgetStrap() }
                     } footer: {
                         Text("The app reconnects to the saved strap automatically whenever it's in range, including in the background.")
                     }

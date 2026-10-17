@@ -62,6 +62,7 @@ Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iP
 - If the strap drops out, a pending reconnect stays active and it resumes automatically when back in range, including in the background. The gap is marked and HRV never spans it.
 - If iOS terminates the app for memory, Bluetooth state restoration relaunches it and recording continues.
 - **If you swipe the app away in the app switcher, iOS stops all Bluetooth delivery.** Recording pauses until you open the app again.
+- **No-data alert:** if no packet arrives for 10 minutes, for any reason (strap off or out of range, app swiped away, a silent stall), one "No heart-rate data" notification fires. Each packet pushes a scheduled notification back, because the app gets no time to run once data stops. Forgetting the strap cancels it. It also fires when you take the strap off on purpose.
 
 ## Troubleshooting: strap doesn't send RR intervals
 
