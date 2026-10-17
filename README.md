@@ -17,6 +17,12 @@ xcrun devicectl device install app --device <device-id> build/Build/Products/Deb
 
 Signing uses a paid Apple Developer Program team, so development installs stay valid for a year (until the provisioning profile expires).
 
+Each build records which code it came from, shown at the bottom of the Strap tab, e.g. `0.1 · adb9a13* · tem-16 · Oct 17 14:05`:
+- The line shows version, commit, branch (shortened to the issue ID) and build time; `*` means the working tree had uncommitted changes.
+- `tools/embed-build-info.sh` writes this into `BuildInfo.plist` in the app bundle on every build. Outside a git checkout the values are `unknown`, and on CI the branch comes from GitHub's environment.
+- Reading git needs the whole checkout, so the HRV target has user script sandboxing off (`ENABLE_USER_SCRIPT_SANDBOXING = NO`). The other targets keep it on.
+- The version number stays 0.1 (build 1) for now, since the commit identifies a build. Bump it once builds are distributed, e.g. via TestFlight.
+
 Tests: `xcodebuild test -scheme HRV -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
 
 GitHub Actions runs the tests on every pull request and push to `main` (`.github/workflows/test.yml`).

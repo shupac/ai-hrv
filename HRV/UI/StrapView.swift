@@ -59,6 +59,10 @@ struct StrapView: View {
                         Text("The app reconnects to the saved strap automatically whenever it's in range, including in the background.")
                     }
                 }
+
+                Section {} footer: {
+                    Text(BuildInfo.current.line()).monospacedDigit().lineLimit(1).textSelection(.enabled)
+                }
             }
             .navigationTitle("Strap")
         }

@@ -292,3 +292,42 @@ struct ChangeDetectorTests {
         #expect(feed(&s, Array(repeating: 20, count: 30), from: 3000) == nil)
     }
 }
+
+struct BuildInfoTests {
+    private let utc = TimeZone(identifier: "UTC")!
+    private let en = Locale(identifier: "en_US")
+
+    @Test func lineShowsVersionCommitBranchAndTime() {
+        let b = BuildInfo(info: ["GitCommit": "adb9a13", "GitBranch": "shuhxl/tem-16-detect-pairing",
+                                 "GitDirty": false, "BuildTime": "2026-10-17T14:05:09Z"], version: "0.1")
+        #expect(b.line(timeZone: utc, locale: en) == "0.1 · adb9a13 · tem-16 · Oct 17 14:05")
+    }
+
+    @Test func dirtyBuildIsMarked() {
+        let b = BuildInfo(info: ["GitCommit": "adb9a13", "GitBranch": "main", "GitDirty": true,
+                                 "BuildTime": "2026-01-02T03:04:00Z"], version: "0.1")
+        #expect(b.line(timeZone: utc, locale: en) == "0.1 · adb9a13* · main · Jan 2 03:04")
+    }
+
+    @Test func missingInfoFallsBackToUnknown() {
+        let b = BuildInfo(info: [:], version: nil)
+        #expect(b.line(timeZone: utc, locale: en) == "unknown · unknown · unknown")
+    }
+
+    @Test func shortBranch() {
+        #expect(BuildInfo.shortBranch("shuhxl/tem-16-detect-pairing") == "tem-16")
+        #expect(BuildInfo.shortBranch("tem-20") == "tem-20")
+        #expect(BuildInfo.shortBranch("main") == "main")
+        #expect(BuildInfo.shortBranch("feature/x") == "x")
+        #expect(BuildInfo.shortBranch("tempo-notes") == "tempo-notes")
+    }
+
+    /// The test host is the built app, so this checks the build phase ran.
+    @Test func appBundleContainsBuildInfo() throws {
+        let url = try #require(Bundle.main.url(forResource: "BuildInfo", withExtension: "plist"))
+        let info = try #require(NSDictionary(contentsOf: url) as? [String: Any])
+        let commit = try #require(info["GitCommit"] as? String)
+        #expect(commit.count == 7 && commit.allSatisfy(\.isHexDigit))
+        #expect(BuildInfo.current.buildTime != nil)
+    }
+}
