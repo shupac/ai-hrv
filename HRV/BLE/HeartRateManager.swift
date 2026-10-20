@@ -44,15 +44,20 @@ final class HeartRateManager: NSObject {
     private(set) var deviceName: String?
     private(set) var lastPacket: Date?
     private(set) var battery: Int?          // strap battery %, if it reports one
+    private(set) var accelerometerRate: Int? // Hz, while a PMD strap streams the accelerometer
+    private(set) var lastAccFrame: Date?
     let log: ConnectionLog
 
     @ObservationIgnored var onMeasurement: ((HeartRateMeasurement, Date) -> Void)?
     @ObservationIgnored var onDisconnect: (() -> Void)?
+    /// Accelerometer frames from straps with Polar Measurement Data (e.g. H10), with the time received.
+    @ObservationIgnored var onAccelerometer: ((AccFrame, Date) -> Void)?
 
     @ObservationIgnored private var central: CBCentralManager!
     @ObservationIgnored private var peripheral: CBPeripheral?
     @ObservationIgnored private var userDisconnected = false
     @ObservationIgnored private var monitor = ConnectionMonitor()
+    @ObservationIgnored private var pmd = PolarPMD.Setup()
 
     var savedDeviceID: UUID? {
         get { UserDefaults.standard.string(forKey: Self.savedDeviceKey).flatMap(UUID.init) }
@@ -120,16 +125,63 @@ final class HeartRateManager: NSObject {
         central.connect(p) // no timeout: iOS keeps trying until the strap is in range
     }
 
-    private func record(_ kind: ConnectionEvent.Kind, _ p: CBPeripheral?, error: Error? = nil, requested: Bool = false) {
-        log.append(monitor.handle(kind, device: p?.name ?? deviceName, error: error, requested: requested, at: Date()))
+    private func record(_ kind: ConnectionEvent.Kind, _ p: CBPeripheral?, error: Error? = nil, requested: Bool = false,
+                        detail: String? = nil) {
+        var event = monitor.handle(kind, device: p?.name ?? deviceName, error: error, requested: requested, at: Date())
+        event.detail = detail
+        log.append(event)
     }
 
     private func subscribe(_ p: CBPeripheral) {
         if let c = p.services?.first(where: { $0.uuid == Self.hrService })?
             .characteristics?.first(where: { $0.uuid == Self.hrMeasurement }) {
             p.setNotifyValue(true, for: c)
+            if let s = p.services?.first(where: { $0.uuid == PolarPMD.service }) {
+                // A restored service may come back without its characteristics.
+                if s.characteristics == nil {
+                    p.discoverCharacteristics([PolarPMD.controlPoint, PolarPMD.data], for: s)
+                } else {
+                    enablePMD(p, s)
+                }
+            } else {
+                p.discoverServices([PolarPMD.service])
+            }
         } else {
-            p.discoverServices([Self.hrService, Self.batteryService])
+            p.discoverServices([Self.hrService, Self.batteryService, PolarPMD.service])
+        }
+    }
+
+    /// Data notifications first, then the control point; enabling the latter reads the features.
+    private func enablePMD(_ p: CBPeripheral, _ s: CBService) {
+        resetPMD()
+        let chars = s.characteristics ?? []
+        guard let data = chars.first(where: { $0.uuid == PolarPMD.data }),
+              let cp = chars.first(where: { $0.uuid == PolarPMD.controlPoint }) else { return }
+        p.setNotifyValue(true, for: data)
+        // After state restoration the control point may still be notifying, in which case no callback follows.
+        if cp.isNotifying { p.readValue(for: cp) } else { p.setNotifyValue(true, for: cp) }
+    }
+
+    private func resetPMD() {
+        pmd = PolarPMD.Setup()
+        accelerometerRate = nil
+        lastAccFrame = nil
+    }
+
+    private func handleControlPoint(_ p: CBPeripheral, _ c: CBCharacteristic, _ data: Data) {
+        let before = pmd.status
+        if let command = pmd.handle(controlPoint: data) {
+            p.writeValue(command, for: c, type: .withResponse)
+        }
+        guard pmd.status != before else { return }
+        switch pmd.status {
+        case .streaming:
+            accelerometerRate = pmd.settings?.sampleRate
+            record(.accelerometerStarted, p, detail: accelerometerRate.map { "\($0) Hz" })
+        case .failed(let status):
+            record(.accelerometerFailed, p, detail: "PMD status \(status)")
+        default:
+            break
         }
     }
 
@@ -202,7 +254,7 @@ extension HeartRateManager: CBCentralManagerDelegate {
         state = .connected
         deviceName = p.name
         record(.connected, p)
-        p.discoverServices([Self.hrService, Self.batteryService])
+        p.discoverServices([Self.hrService, Self.batteryService, PolarPMD.service])
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect p: CBPeripheral, error: Error?) {
@@ -215,6 +267,7 @@ extension HeartRateManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) {
         onDisconnect?()
         record(.disconnected, p, error: error, requested: userDisconnected || p != peripheral)
+        resetPMD()
         guard !userDisconnected, p == peripheral else { return }
         state = .reconnecting
         central.connect(p)
@@ -226,10 +279,12 @@ extension HeartRateManager: CBPeripheralDelegate {
         for s in p.services ?? [] {
             if s.uuid == Self.hrService { p.discoverCharacteristics([Self.hrMeasurement], for: s) }
             if s.uuid == Self.batteryService { p.discoverCharacteristics([Self.batteryLevel], for: s) }
+            if s.uuid == PolarPMD.service { p.discoverCharacteristics([PolarPMD.controlPoint, PolarPMD.data], for: s) }
         }
     }
 
     func peripheral(_ p: CBPeripheral, didDiscoverCharacteristicsFor s: CBService, error: Error?) {
+        if s.uuid == PolarPMD.service { enablePMD(p, s) }
         for c in s.characteristics ?? [] {
             if c.uuid == Self.hrMeasurement { p.setNotifyValue(true, for: c) }
             if c.uuid == Self.batteryLevel {
@@ -239,7 +294,23 @@ extension HeartRateManager: CBPeripheralDelegate {
         }
     }
 
+    func peripheral(_ p: CBPeripheral, didUpdateNotificationStateFor c: CBCharacteristic, error: Error?) {
+        if c.uuid == PolarPMD.controlPoint, c.isNotifying { p.readValue(for: c) }
+    }
+
     func peripheral(_ p: CBPeripheral, didUpdateValueFor c: CBCharacteristic, error: Error?) {
+        if c.uuid == PolarPMD.controlPoint, let data = c.value {
+            handleControlPoint(p, c, data)
+            return
+        }
+        if c.uuid == PolarPMD.data, let data = c.value {
+            if let frame = pmd.frame(data) {
+                let now = Date()
+                lastAccFrame = now
+                onAccelerometer?(frame, now)
+            }
+            return
+        }
         if c.uuid == Self.batteryLevel, let level = c.value?.first {
             battery = Int(level)
             return

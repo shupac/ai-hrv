@@ -29,6 +29,13 @@ struct StrapView: View {
                             Text(ble.lastPacket.map { ago($0) } ?? "—").monospacedDigit()
                         }
                     }
+                    if let rate = ble.accelerometerRate {
+                        LabeledContent("Accelerometer") {
+                            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                                Text("\(rate) Hz · " + (ble.lastAccFrame.map { ago($0) } ?? "—")).monospacedDigit()
+                            }
+                        }
+                    }
                     if let bpm = model.live.bpm {
                         LabeledContent("Heart rate", value: "\(bpm) bpm")
                     }
@@ -137,8 +144,11 @@ struct ConnectionLogView: View {
         case .connectFailed: "Connect failed"
         case .bluetoothOff: "Bluetooth off"
         case .restored: "Relaunched by iOS"
+        case .accelerometerStarted: "Accelerometer started"
+        case .accelerometerFailed: "Accelerometer failed"
         }
         if e.requested { t += " (by app)" }
+        if let d = e.detail { t += ", \(d)" }
         if let d = e.downtime { t += " after \(Duration.seconds(d.rounded()).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .narrow)))" }
         return t
     }

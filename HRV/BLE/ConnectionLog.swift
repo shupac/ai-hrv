@@ -4,7 +4,10 @@ import Observation
 
 /// One connection event. Holds no heart-rate or beat data.
 struct ConnectionEvent: Codable, Identifiable, Equatable {
-    enum Kind: String, Codable { case connected, disconnected, connectFailed, bluetoothOff, restored }
+    enum Kind: String, Codable {
+        case connected, disconnected, connectFailed, bluetoothOff, restored
+        case accelerometerStarted, accelerometerFailed
+    }
 
     var id = UUID()
     var time: Date
@@ -17,6 +20,8 @@ struct ConnectionEvent: Codable, Identifiable, Equatable {
     var errorDescription: String?
     /// On `connected`: seconds since the strap dropped out.
     var downtime: TimeInterval?
+    /// On accelerometer events: the sample rate, or the PMD error status.
+    var detail: String?
 
     var line: String {
         var parts = [Date.ISO8601FormatStyle(timeZone: .current).format(time), kind.rawValue]
@@ -24,6 +29,7 @@ struct ConnectionEvent: Codable, Identifiable, Equatable {
         if requested { parts.append("requested") }
         if let errorDomain, let errorCode { parts.append("\(errorDomain) \(errorCode): \(errorDescription ?? "")") }
         if let downtime { parts.append("after \(Int(downtime.rounded())) s") }
+        if let detail { parts.append(detail) }
         return parts.joined(separator: " · ")
     }
 }
@@ -47,7 +53,7 @@ struct ConnectionMonitor {
             disconnectedSince = nil
         case .disconnected, .bluetoothOff:
             disconnectedSince = requested ? nil : disconnectedSince ?? now
-        case .connectFailed, .restored:
+        case .connectFailed, .restored, .accelerometerStarted, .accelerometerFailed:
             break
         }
         return event
