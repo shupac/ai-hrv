@@ -54,7 +54,7 @@ GitHub Actions runs the tests on every pull request and push to `main` (`.github
   - You can answer from the Lock Screen with a typed reply or a quick option.
 - The Strap tab shows strap battery when the strap reports it.
 - **Connection log** (Strap tab → Connection log, `BLE/ConnectionLog.swift`): every connect, disconnect, failed connect, Bluetooth-off, iOS relaunch and accelerometer start or failure, with the error domain, code and description and how long a reconnect took. It keeps the newest 500 events in `Documents/connection-log.json` and can be shared as text. It holds no heart-rate data.
-- **Accelerometer** (`Core/PolarPMD.swift`): straps with Polar Measurement Data (e.g. H10) also stream the accelerometer alongside heart rate, at the lowest rate ≥ 25 Hz with an 8 G range. Sample times come from the strap's clock, which isn't synced to the phone, so each frame is anchored at the time the phone received it. The Strap tab shows the rate and when the last frame arrived. The connection log records when the stream starts or the strap rejects it. Samples aren't stored yet.
+- **Accelerometer** (`Core/PolarPMD.swift`): straps with Polar Measurement Data (e.g. H10) also stream the accelerometer alongside heart rate, at the lowest rate ≥ 25 Hz with an 8 G range. Sample times come from the strap's clock, which isn't synced to the phone, so each frame is anchored at the time the phone received it. The Strap tab shows the rate and when the last frame arrived. The connection log records when the stream starts or the strap rejects it. Samples are stored as described in "Motion".
 - **Live Activity** (`HRVWidget/`, `HRV/LiveActivity/`):
   - Shows current HRV and HR on the Lock Screen, and in the Mac menu bar on macOS 26+ when iPhone Mirroring is set up.
   - It starts when the app is in the foreground with the strap connected, and updates at most every 10 s from the background.
@@ -63,6 +63,16 @@ GitHub Actions runs the tests on every pull request and push to `main` (`.github
 - **Swiping the app away stops recording:** iOS doesn't relaunch an app you swiped away, so it won't reconnect to the strap until you open it again.
   - It shows "—" after 90 s without data.
   - iOS ends it after about 8 hours, and it restarts the next time you open the app.
+
+## Motion
+
+- **Storage** (`Storage/MotionFile.swift`): every accelerometer sample is kept, in `Documents/days/YYYY-MM-DD.motion` next to the day CSV, which doesn't change.
+  - The format is compact little-endian binary with a version in its header. Each record is one strap frame: the time the phone received it, the strap's sensor times of its first and last sample, and the samples as 16-bit x/y/z in mG.
+  - A day is about 15 MB at 25 Hz (6 bytes per sample plus 27 per frame), so about 450 MB a month. CSV would be about 100 MB a day.
+  - Raw samples are kept rather than per-second signals because which signals matter isn't known yet: signals can be recomputed from raw data, but raw data can't be recreated from them.
+  - Gaps aren't marked. They show as a jump in received time, and come from the same disconnects as the CSV's `gap` rows.
+  - Deleting a day deletes its motion file too.
+- Nothing is derived from motion yet.
 
 ## Background behaviour (iOS limits)
 

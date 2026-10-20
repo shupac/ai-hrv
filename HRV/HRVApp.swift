@@ -19,6 +19,9 @@ final class AppModel {
             if UIApplication.shared.applicationState == .active { startLiveActivity() }
             activity.update(activityState())
         }
+        ble.onAccelerometer = { [unowned self] frame, date in
+            store.motion.append(MotionFrame(frame, receivedAt: date))
+        }
         ble.onDisconnect = { [unowned self] in
             live.handleDisconnect()
             // It can't be restarted from the background, so it returns the next time the app is opened.
