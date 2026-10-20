@@ -73,3 +73,74 @@ struct MotionFileTests {
         #expect(store.motion.load(day: "2026-10-20") == fs)
     }
 }
+
+struct MotionAnalysisTests {
+    @Test func stillUprightThenLying() {
+        let lying = SIMD3<Double>(0, 0, -1000)
+        let fs = frames(from: noon, seconds: 300, still(upright))
+            + frames(from: noon.addingTimeInterval(300), seconds: 120, still(lying))
+        let day = MotionAnalysis.analyze(fs)
+        let up = try! #require(day.upright)
+        #expect(MotionAnalysis.angle(up, upright) < 1)
+        #expect(day.seconds.count == 420)
+        #expect(day.seconds.prefix(300).allSatisfy { $0.state == .upright && $0.movement < 10 })
+        #expect(day.seconds.suffix(110).allSatisfy { $0.state == .lying && abs(($0.tilt ?? 0) - 90) < 2 })
+        #expect(day.postureChanges.count == 1)
+        let change = try! #require(day.postureChanges.first)
+        #expect(abs(change.timeIntervalSince(noon.addingTimeInterval(300))) < 6)
+    }
+
+    @Test func uprightIsTheMostCommonOrientationNotTheAverage() throws {
+        let reclined = SIMD3<Double>(-500, 0, -866)     // 60° from upright
+        let fs = frames(from: noon, seconds: 240, still(upright))
+            + frames(from: noon.addingTimeInterval(240), seconds: 180, still(reclined))
+            + frames(from: noon.addingTimeInterval(420), seconds: 180, still(SIMD3(0, 0, -1000)))
+        let up = try #require(MotionAnalysis.analyze(fs).upright)
+        #expect(MotionAnalysis.angle(up, upright) < 2)
+    }
+
+    @Test func walkingHasCadence() throws {
+        let day = MotionAnalysis.analyze(frames(from: noon, seconds: 120, still(upright))
+            + frames(from: noon.addingTimeInterval(120), seconds: 60, walking))
+        let walk = day.seconds.suffix(55)
+        #expect(walk.allSatisfy { $0.state == .walking })
+        let cadence = try #require(walk.first?.cadence)
+        #expect(abs(cadence - 108) < 8)
+        #expect(day.postureChanges.isEmpty)
+    }
+
+    @Test func irregularMovementIsActiveNotWalking() {
+        // A deterministic jumble: large but without a repeating period.
+        var seed: UInt64 = 42
+        func next() -> Double {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            return Double(seed >> 11) / Double(1 << 53) * 2 - 1
+        }
+        let jumble = (0..<(60 * 25)).map { _ in SIMD3(next(), next(), next()) * 200 }
+        let fs = frames(from: noon, seconds: 60) { t in upright + jumble[min(jumble.count - 1, Int((t * 25).rounded()))] }
+        let secs = MotionAnalysis.seconds(fs)
+        #expect(secs.allSatisfy { $0.state == .active })
+    }
+
+    @Test func noReferenceWithoutEnoughStillTime() {
+        let day = MotionAnalysis.analyze(frames(from: noon, seconds: 30, still(upright)))
+        #expect(day.upright == nil)
+        #expect(day.seconds.allSatisfy { $0.state == .still && $0.tilt == nil })
+    }
+
+    @Test func bucketsBreakAtGapsAndPickTheCommonState() {
+        let fs = frames(from: noon, seconds: 120, still(upright))
+            + frames(from: noon.addingTimeInterval(120), seconds: 40, walking)
+            + frames(from: noon.addingTimeInterval(600), seconds: 60, still(upright))
+        let buckets = MotionAnalysis.analyze(fs).buckets(step: 60)
+        #expect(buckets.map(\.state) == [.upright, .upright, .walking, .upright])
+        #expect(buckets.map(\.segment) == [0, 0, 0, 1])
+    }
+
+    @Test func stepCadenceNeedsARepeatingSignal() {
+        let flat = [Double](repeating: 1000, count: 100)
+        #expect(MotionAnalysis.stepCadence(flat, duration: 4) == nil)
+        let steps = (0..<100).map { 1000 + 200 * sin(2 * .pi * 2.0 * Double($0) / 25) }
+        #expect(abs((MotionAnalysis.stepCadence(steps, duration: 4) ?? 0) - 120) < 6)
+    }
+}

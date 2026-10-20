@@ -36,6 +36,9 @@ struct StrapView: View {
                             }
                         }
                     }
+                    if let m = model.motionNow {
+                        LabeledContent("Motion", value: motionText(m)).monospacedDigit()
+                    }
                     if let bpm = model.live.bpm {
                         LabeledContent("Heart rate", value: "\(bpm) bpm")
                     }
@@ -95,6 +98,13 @@ struct StrapView: View {
     private func ago(_ date: Date) -> String {
         let s = Int(Date().timeIntervalSince(date))
         return s < 60 ? "\(s) s ago" : date.formatted(date: .omitted, time: .shortened)
+    }
+
+    private func motionText(_ m: MotionSecond) -> String {
+        var parts = [m.state.label]
+        if let c = m.cadence, m.state == .walking || m.state == .running { parts.append("\(Int(c.rounded())) spm") }
+        parts.append("\(Int(m.movement.rounded())) mG")
+        return parts.joined(separator: " · ")
     }
 
     private func batterySymbol(_ b: Int) -> String {

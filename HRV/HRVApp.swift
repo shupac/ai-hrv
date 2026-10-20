@@ -8,6 +8,9 @@ final class AppModel {
     let prompter: ChangePrompter
     let activity = LiveActivityController()
     let stopped = RecordingStoppedAlert()
+    /// The last complete second of accelerometer data, while a PMD strap streams.
+    private(set) var motionNow: MotionSecond?
+    @ObservationIgnored private var recentMotion: [MotionFrame] = []
 
     init() {
         live = LiveSession(store: store)
@@ -20,10 +23,14 @@ final class AppModel {
             activity.update(activityState())
         }
         ble.onAccelerometer = { [unowned self] frame, date in
-            store.motion.append(MotionFrame(frame, receivedAt: date))
+            let f = MotionFrame(frame, receivedAt: date)
+            store.motion.append(f)
+            updateMotion(f)
         }
         ble.onDisconnect = { [unowned self] in
             live.handleDisconnect()
+            motionNow = nil
+            recentMotion = []
             // It can't be restarted from the background, so it returns the next time the app is opened.
             activity.end()
         }
@@ -32,6 +39,13 @@ final class AppModel {
                                                object: nil, queue: nil) { [activity] _ in
             activity.endBeforeTermination()
         }
+    }
+
+    private func updateMotion(_ f: MotionFrame) {
+        recentMotion.removeAll { f.received.timeIntervalSince($0.received) > 7 }
+        recentMotion.append(f)
+        // The newest second is still filling.
+        motionNow = MotionAnalysis.seconds(recentMotion).dropLast().last
     }
 
     /// Starts the Live Activity if needed; only possible while the app is in the foreground.

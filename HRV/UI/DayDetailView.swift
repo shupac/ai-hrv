@@ -10,6 +10,9 @@ struct DayDetailView: View {
     @State private var selection: Date?
     @State private var editing: Tag?
     @State private var newTagTime: Date?
+    @State private var motion: (frames: [MotionFrame], day: MotionDay, buckets: [MotionBucket], step: TimeInterval)?
+    @State private var motionCSV: URL?
+    @State private var motionLoading = false
 
     var body: some View {
         let tags = model.store.tags(on: day)
@@ -26,6 +29,12 @@ struct DayDetailView: View {
                 selectionRow
             } footer: {
                 Text("Drag across the chart to pick a moment, then tag it.")
+            }
+
+            if let motion {
+                motionSection(motion)
+            } else if motionLoading {
+                Section("Motion") { ProgressView() }
             }
 
             Section("Tags") {
@@ -86,6 +95,38 @@ struct DayDetailView: View {
         }
     }
 
+    private var domain: ClosedRange<Date> {
+        let first = points.first?.time ?? motion?.buckets.first?.time
+        let last = points.last?.time ?? motion?.buckets.last?.time
+        guard let first, let last, first < last else { return Date().addingTimeInterval(-60)...Date() }
+        return first...last
+    }
+
+    @ViewBuilder private func motionSection(
+        _ m: (frames: [MotionFrame], day: MotionDay, buckets: [MotionBucket], step: TimeInterval)
+    ) -> some View {
+        Section {
+            MotionChart(buckets: m.buckets, step: m.step, metric: .state, postureChanges: m.day.postureChanges,
+                        domain: domain, selection: $selection)
+                .frame(height: 70)
+            MotionChart(buckets: m.buckets, step: m.step, metric: .movement, domain: domain, selection: $selection)
+                .frame(height: 140)
+            MotionChart(buckets: m.buckets, step: m.step, metric: .tilt, postureChanges: m.day.postureChanges,
+                        domain: domain, selection: $selection)
+                .frame(height: 140)
+            if let selection {
+                MotionDetail(frames: m.frames, seconds: m.day.seconds, around: selection)
+            }
+            if let motionCSV {
+                ShareLink(item: motionCSV) { Label("Export motion signals", systemImage: "square.and.arrow.up") }
+            }
+        } header: {
+            Text("Motion")
+        } footer: {
+            Text("Lines mark posture changes.")
+        }
+    }
+
     @ViewBuilder private var selectionRow: some View {
         if let selection {
             let p = points.min { abs($0.time.timeIntervalSince(selection)) < abs($1.time.timeIntervalSince(selection)) }
@@ -110,6 +151,7 @@ struct DayDetailView: View {
                 DayStore.parseCSV((try? String(contentsOf: url, encoding: .utf8)) ?? "")
             }.value
         }
+        if reload || motion == nil { await loadMotion() }
         let loaded = beats ?? []
         let window = window
         points = await Task.detached(priority: .userInitiated) { () -> [HRVPoint] in
@@ -118,6 +160,29 @@ struct DayDetailView: View {
             let step = max(5, (last.time.timeIntervalSince(first.time) / 2000).rounded())
             return HRVCalculator.series(loaded, window: window, from: first.time, to: last.time, step: step)
         }.value
+    }
+
+    private func loadMotion() async {
+        let recorder = model.store.motion
+        let day = day
+        recorder.flush()
+        let url = recorder.url(day: day)
+        motionLoading = FileManager.default.fileExists(atPath: url.path)
+        defer { motionLoading = false }
+        let result = await Task.detached(priority: .userInitiated) {
+            () -> (frames: [MotionFrame], day: MotionDay, buckets: [MotionBucket], step: TimeInterval, csv: URL?)? in
+            guard let data = try? Data(contentsOf: url), let frames = MotionFile.decode(data), !frames.isEmpty
+            else { return nil }
+            let analysis = MotionAnalysis.analyze(frames)
+            guard let first = analysis.seconds.first?.time, let last = analysis.seconds.last?.time else { return nil }
+            // Keep a full day to ≈700 buckets.
+            let step = max(10, (last.timeIntervalSince(first) / 700 / 10).rounded(.up) * 10)
+            let csv = FileManager.default.temporaryDirectory.appendingPathComponent("\(day)-motion.csv")
+            let wrote = (try? analysis.csv().write(to: csv, atomically: true, encoding: .utf8)) != nil
+            return (frames, analysis, analysis.buckets(step: step), step, wrote ? csv : nil)
+        }.value
+        motion = result.map { ($0.frames, $0.day, $0.buckets, $0.step) }
+        motionCSV = result?.csv
     }
 
     private func icon(_ t: Tag) -> String {
