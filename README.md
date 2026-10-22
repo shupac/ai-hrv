@@ -54,7 +54,7 @@ GitHub Actions runs the tests on every pull request and push to `main` (`.github
   - You can answer from the Lock Screen with a typed reply or a quick option.
 - The Strap tab shows strap battery when the strap reports it.
 - **Connection log** (Strap tab → Connection log, `BLE/ConnectionLog.swift`): every connect, disconnect, failed connect, Bluetooth-off, iOS relaunch and accelerometer start or failure, with the error domain, code and description and how long a reconnect took. It keeps the newest 500 events in `Documents/connection-log.json` and can be shared as text. It holds no heart-rate data.
-- **Accelerometer** (`Core/PolarPMD.swift`): straps with Polar Measurement Data (e.g. H10) also stream the accelerometer alongside heart rate, at the lowest rate ≥ 25 Hz with an 8 G range. Sample times come from the strap's clock, which isn't synced to the phone, so each frame is anchored at the time the phone received it. The Strap tab shows the rate and when the last frame arrived. The connection log records when the stream starts or the strap rejects it. Samples aren't stored yet.
+- **Accelerometer** (`Core/PolarPMD.swift`): straps with Polar Measurement Data (e.g. H10) also stream the accelerometer alongside heart rate, at the lowest rate ≥ 25 Hz with an 8 G range. Sample times come from the strap's clock, which isn't synced to the phone, so each frame is anchored at the time the phone received it. The Strap tab shows the rate and when the last frame arrived. The connection log records when the stream starts or the strap rejects it. Samples are stored and analysed as described in "Motion".
 - **Live Activity** (`HRVWidget/`, `HRV/LiveActivity/`):
   - Shows current HRV and HR on the Lock Screen, and in the Mac menu bar on macOS 26+ when iPhone Mirroring is set up.
   - It starts when the app is in the foreground with the strap connected, and updates at most every 10 s from the background.
@@ -63,6 +63,33 @@ GitHub Actions runs the tests on every pull request and push to `main` (`.github
 - **Swiping the app away stops recording:** iOS doesn't relaunch an app you swiped away, so it won't reconnect to the strap until you open it again.
   - It shows "—" after 90 s without data.
   - iOS ends it after about 8 hours, and it restarts the next time you open the app.
+
+## Motion
+
+- **Storage** (`Storage/MotionFile.swift`): every accelerometer sample is kept, in `Documents/days/YYYY-MM-DD.motion` next to the day CSV, which doesn't change.
+  - The format is compact little-endian binary with a version in its header. Each record is one strap frame: the time the phone received it, the strap's sensor times of its first and last sample, and the samples as 16-bit x/y/z in mG.
+  - A day is about 15 MB at 25 Hz (6 bytes per sample plus 27 per frame), so about 450 MB a month. CSV would be about 100 MB a day.
+  - Raw samples are kept rather than per-second signals because the signals below are first guesses: they can be recomputed from raw data, but raw data can't be recreated from them.
+  - Gaps aren't marked. They show as a jump in received time, and come from the same disconnects as the CSV's `gap` rows.
+  - Deleting a day deletes its motion file too.
+- **Signals** (`Core/MotionAnalysis.swift`), for each second:
+  - Movement: RMS deviation from that second's mean acceleration, in mG.
+  - Orientation: the mean acceleration, which is mostly gravity. Tilt is its angle from the day's upright orientation, taken as the orientation with the most still minutes within 20°. A day spent mostly lying down gets lying as its reference.
+  - Cadence: steps/min from the autocorrelation of the acceleration magnitude over 4 s, if it repeats at 80–200 steps/min with a correlation of at least 0.4.
+- **Labels**, all first guesses waiting to be checked against recorded days:
+  - Running: cadence ≥ 140 steps/min and movement ≥ 400 mG.
+  - Walking: a cadence and movement ≥ 80 mG.
+  - Moving: movement ≥ 30 mG without a cadence.
+  - Otherwise by tilt: upright below 30°, reclined below 60°, lying from 60°. Sitting and standing both read as upright. Without 60 still seconds there's no reference, and the label is still.
+  - Posture change: the 5 s average orientation differs from the one 10 s earlier by more than 30°, at most once per 30 s.
+- **Where it shows:**
+  - The Strap tab shows the current label, cadence, movement and tilt.
+  - The Live tab shows the last 30 min, lined up with the HRV chart: the label band, movement and tilt. Tilt uses the last 2 h for its upright reference, so it needs a minute of still time first. After a relaunch the last 2 h are read back from today's motion file (`Core/LiveMotion.swift`).
+  - A History day has a Motion section with a band of labels (vertical lines are posture changes), movement on a log scale and tilt, both with their thresholds drawn in.
+  - Selecting a moment shows the raw x/y/z for 30 s either side, with per-second labels underneath.
+  - "Export motion signals" shares the per-second signals as CSV.
+  - Opening a full day takes a few seconds.
+- Motion doesn't change HRV values or change prompts yet.
 
 ## Background behaviour (iOS limits)
 

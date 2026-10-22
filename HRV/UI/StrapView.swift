@@ -36,6 +36,9 @@ struct StrapView: View {
                             }
                         }
                     }
+                    if let m = model.motion.current {
+                        LabeledContent("Motion", value: m.summary).monospacedDigit()
+                    }
                     if let bpm = model.live.bpm {
                         LabeledContent("Heart rate", value: "\(bpm) bpm")
                     }

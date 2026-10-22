@@ -47,6 +47,7 @@ enum DayKey {
 
 /// Always-on storage: one append-only CSV per local day in Documents/days
 /// (`epoch_ms,rr_ms,valid,bpm,event`, with `gap` rows at discontinuities), plus tags.json.
+/// Accelerometer frames go to a separate `YYYY-MM-DD.motion` file per day (see `MotionFile`).
 @Observable
 final class DayStore {
     static let quickLabels = ["Meeting", "Conversation", "Focus", "Break", "Meditation", "Exercise", "Meal", "Caffeine"]
@@ -57,6 +58,7 @@ final class DayStore {
 
     @ObservationIgnored private let root: URL
     @ObservationIgnored private let dir: URL
+    @ObservationIgnored let motion: MotionRecorder
     @ObservationIgnored private var handle: FileHandle?
     @ObservationIgnored private var currentDay: String?
     @ObservationIgnored private var buffer = ""
@@ -66,6 +68,7 @@ final class DayStore {
     init(root: URL? = nil) {
         self.root = root ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         dir = self.root.appendingPathComponent("days", isDirectory: true)
+        motion = MotionRecorder(dir: dir)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         migrateSessions()
         scanDays()
@@ -76,6 +79,7 @@ final class DayStore {
     var tagsURL: URL { dir.appendingPathComponent("tags.json") }
     var summariesURL: URL { dir.appendingPathComponent("summaries.json") }
     func csvURL(day: String) -> URL { dir.appendingPathComponent("\(day).csv") }
+    func motionURL(day: String) -> URL { motion.url(day: day) }
 
     // MARK: - Recording
 
@@ -89,6 +93,7 @@ final class DayStore {
     }
 
     func flush() {
+        motion.flush()
         lastFlush = Date()
         guard !buffer.isEmpty, let handle else { return }
         handle.write(Data(buffer.utf8))
@@ -167,6 +172,7 @@ final class DayStore {
             currentDay = nil
         }
         try? FileManager.default.removeItem(at: csvURL(day: day))
+        motion.delete(day: day)
         tags.removeAll { DayKey.key(for: $0.time) == day }
         summaries[day] = nil
         days.removeAll { $0 == day }

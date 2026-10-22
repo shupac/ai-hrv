@@ -19,6 +19,9 @@ struct LiveView: View {
                     .frame(height: 240)
                 HRVChart(points: model.live.series, metric: .heartRate, tags: model.store.tags, showTagLabels: false)
                     .frame(height: 140)
+                if !model.motion.buckets.isEmpty {
+                    motionCharts
+                }
                 tagButton
             }
             .padding()
@@ -58,6 +61,28 @@ struct LiveView: View {
         .monospacedDigit()
         .lineLimit(1)
         .minimumScaleFactor(0.7)
+    }
+
+    private var motionCharts: some View {
+        let m = model.motion
+        let series = model.live.series
+        // Same time range as the HRV chart above, so they line up.
+        let first = series.first?.time ?? m.buckets.first!.time
+        let last = series.last?.time ?? m.buckets.last!.time
+        let domain = first < last ? first...last : last.addingTimeInterval(-60)...last
+        return VStack(alignment: .leading, spacing: 12) {
+            if let current = m.current {
+                Text(current.summary).font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
+            }
+            MotionChart(buckets: m.buckets, step: LiveMotion.tick, metric: .state,
+                        postureChanges: m.postureChanges, domain: domain)
+                .frame(height: 70)
+            MotionChart(buckets: m.buckets, step: LiveMotion.tick, metric: .movement, domain: domain)
+                .frame(height: 120)
+            MotionChart(buckets: m.buckets, step: LiveMotion.tick, metric: .tilt,
+                        postureChanges: m.postureChanges, domain: domain)
+                .frame(height: 120)
+        }
     }
 
     private var tagButton: some View {

@@ -5,12 +5,14 @@ final class AppModel {
     let ble = HeartRateManager()
     let store = DayStore()
     let live: LiveSession
+    let motion: LiveMotion
     let prompter: ChangePrompter
     let activity = LiveActivityController()
     let stopped = RecordingStoppedAlert()
 
     init() {
         live = LiveSession(store: store)
+        motion = LiveMotion(store: store)
         prompter = ChangePrompter(store: store)
         ble.onMeasurement = { [unowned self] m, date in
             live.handle(m, at: date)
@@ -19,8 +21,14 @@ final class AppModel {
             if UIApplication.shared.applicationState == .active { startLiveActivity() }
             activity.update(activityState())
         }
+        ble.onAccelerometer = { [unowned self] frame, date in
+            let f = MotionFrame(frame, receivedAt: date)
+            store.motion.append(f)
+            motion.handle(f)
+        }
         ble.onDisconnect = { [unowned self] in
             live.handleDisconnect()
+            motion.handleDisconnect()
             // It can't be restarted from the background, so it returns the next time the app is opened.
             activity.end()
         }
