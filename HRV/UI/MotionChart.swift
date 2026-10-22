@@ -15,6 +15,17 @@ extension MotionState {
     }
 }
 
+extension MotionSecond {
+    /// E.g. "Walking · 108 spm · 182 mG · tilt 4°".
+    var summary: String {
+        var parts = [state.label]
+        if let c = cadence { parts.append("\(Int(c.rounded())) spm") }
+        parts.append("\(Int(movement.rounded())) mG")
+        if let t = tilt { parts.append("tilt \(Int(t.rounded()))°") }
+        return parts.joined(separator: " · ")
+    }
+}
+
 /// Day charts of the accelerometer signals: a band of labels, movement intensity, or tilt from upright.
 struct MotionChart: View {
     enum Metric { case state, movement, tilt }
@@ -202,10 +213,6 @@ struct MotionDetail: View {
     }
 
     private func describe(_ s: MotionSecond) -> String {
-        var parts = [s.time.formatted(date: .omitted, time: .standard), s.state.label,
-                     "\(Int(s.movement.rounded())) mG"]
-        if let c = s.cadence { parts.append("\(Int(c.rounded())) spm") }
-        if let t = s.tilt { parts.append("tilt \(Int(t.rounded()))°") }
-        return parts.joined(separator: " · ")
+        s.time.formatted(date: .omitted, time: .standard) + " · " + s.summary
     }
 }

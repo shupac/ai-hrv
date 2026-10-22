@@ -53,7 +53,12 @@ enum MotionAnalysis {
     static let minSamplesPerSecond = 5
 
     static func analyze(_ frames: [MotionFrame]) -> MotionDay {
-        var secs = seconds(frames)
+        analyze(seconds: seconds(frames))
+    }
+
+    /// Adds tilt and posture labels to seconds as `seconds(_:)` returns them.
+    static func analyze(seconds: [MotionSecond]) -> MotionDay {
+        var secs = seconds
         let up = upright(secs)
         if let up { applyTilt(&secs, upright: up) }
         return MotionDay(seconds: secs, upright: up, postureChanges: postureChanges(secs))

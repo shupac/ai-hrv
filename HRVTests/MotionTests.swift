@@ -144,3 +144,23 @@ struct MotionAnalysisTests {
         #expect(abs((MotionAnalysis.stepCadence(steps, duration: 4) ?? 0) - 120) < 6)
     }
 }
+
+struct LiveMotionTests {
+    @Test func keepsSecondsAndLabelsTheCurrentOne() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let live = LiveMotion(store: DayStore(root: root))
+        for f in frames(from: noon, seconds: 120, still(upright)) + frames(from: noon.addingTimeInterval(120), seconds: 30, walking) {
+            live.handle(f)
+        }
+        let current = try #require(live.current)
+        #expect(current.state == .walking)
+        #expect(abs(current.time.timeIntervalSince(noon.addingTimeInterval(148))) < 1.5)
+        // Five-second buckets over the 150 s so far.
+        #expect((29...31).contains(live.buckets.count))
+        #expect(live.buckets.first?.state == .upright)
+
+        live.handleDisconnect()
+        #expect(live.current == nil)
+    }
+}

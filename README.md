@@ -83,7 +83,8 @@ GitHub Actions runs the tests on every pull request and push to `main` (`.github
   - Otherwise by tilt: upright below 30°, reclined below 60°, lying from 60°. Sitting and standing both read as upright. Without 60 still seconds there's no reference, and the label is still.
   - Posture change: the 5 s average orientation differs from the one 10 s earlier by more than 30°, at most once per 30 s.
 - **Where it shows:**
-  - The Strap tab shows the current label, cadence and movement.
+  - The Strap tab shows the current label, cadence, movement and tilt.
+  - The Live tab shows the last 30 min, lined up with the HRV chart: the label band, movement and tilt. Tilt uses the last 2 h for its upright reference, so it needs a minute of still time first. After a relaunch the last 2 h are read back from today's motion file (`Core/LiveMotion.swift`).
   - A History day has a Motion section with a band of labels (vertical lines are posture changes), movement on a log scale and tilt, both with their thresholds drawn in.
   - Selecting a moment shows the raw x/y/z for 30 s either side, with per-second labels underneath.
   - "Export motion signals" shares the per-second signals as CSV.
